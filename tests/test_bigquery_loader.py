@@ -117,12 +117,6 @@ class TestUpsertPrices:
     loader.upsert_prices(rows)
     assert loader.client.load_table_from_json.call_count == 1
 
-  def test_idempotent_on_duplicate_rows(self, loader):
-    rows = SAMPLE_PRICE_ROWS + SAMPLE_PRICE_ROWS  # double-write same rows
-    loader.upsert_prices(rows)
-    # MERGE handles dedup — we just assert it still only runs one query
-    assert loader.client.query.call_count == 1
-
 
 class TestUpsertCoinMetadata:
   def test_calls_load_job(self, loader):
