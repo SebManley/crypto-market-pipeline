@@ -3,7 +3,7 @@ version: 2
 sources:
   - name: crypto_raw
     description: Raw CoinGecko data written by the Python ingestion pipeline.
-    database: "{{ env_var('GCP_PROJECT_ID') }}"
+    database: "{{ env_var('GCP_PROJECT_ID', 'crypto-market-pipeline-502414') }}"
     schema: raw
     freshness:
       warn_after: {count: 1, period: day}
@@ -26,17 +26,20 @@ sources:
             tests:
               - not_null
               - dbt_utils.expression_is_true:
-                  expression: "> 0"
+                  arguments:
+                    expression: "> 0"
           - name: volume_usd
             tests:
               - dbt_utils.expression_is_true:
-                  expression: ">= 0"
+                  arguments:
+                    expression: ">= 0"
                   config:
                     where: "volume_usd is not null"
           - name: market_cap_usd
             tests:
               - dbt_utils.expression_is_true:
-                  expression: ">= 0"
+                  arguments:
+                    expression: ">= 0"
                   config:
                     where: "market_cap_usd is not null"
 

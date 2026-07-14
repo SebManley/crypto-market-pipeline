@@ -15,17 +15,20 @@ models:
         tests:
           - not_null
           - dbt_utils.expression_is_true:
-              expression: "> 0"
+              arguments:
+                expression: "> 0"
       - name: volume_usd
         tests:
           - dbt_utils.expression_is_true:
-              expression: ">= 0"
+              arguments:
+                expression: ">= 0"
               config:
                 where: "volume_usd is not null"
       - name: market_cap_usd
         tests:
           - dbt_utils.expression_is_true:
-              expression: ">= 0"
+              arguments:
+                expression: ">= 0"
               config:
                 where: "market_cap_usd is not null"
     tests:
