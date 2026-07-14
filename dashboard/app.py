@@ -11,6 +11,9 @@ Run: streamlit run dashboard/app.py
 import os
 from datetime import date, timedelta
 
+from dotenv import load_dotenv
+load_dotenv()
+
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -25,17 +28,25 @@ st.set_page_config(
   initial_sidebar_state='expanded',
 )
 
-PROJECT_ID = os.environ.get('GCP_PROJECT_ID', st.secrets.get('gcp_project_id', ''))
+PROJECT_ID = os.environ.get('GCP_PROJECT_ID', '')
+if not PROJECT_ID:
+  try:
+    PROJECT_ID = st.secrets.get('gcp_project_id', '')
+  except FileNotFoundError:
+    PROJECT_ID = ''
 
 
 @st.cache_resource
 def get_bq_client() -> bigquery.Client:
-  if 'gcp_service_account' in st.secrets:
-    creds = service_account.Credentials.from_service_account_info(
-      st.secrets['gcp_service_account'],
-      scopes=['https://www.googleapis.com/auth/cloud-platform'],
-    )
-    return bigquery.Client(project=PROJECT_ID, credentials=creds)
+  try:
+    if 'gcp_service_account' in st.secrets:
+      creds = service_account.Credentials.from_service_account_info(
+        st.secrets['gcp_service_account'],
+        scopes=['https://www.googleapis.com/auth/cloud-platform'],
+      )
+      return bigquery.Client(project=PROJECT_ID, credentials=creds)
+  except FileNotFoundError:
+    pass
   return bigquery.Client(project=PROJECT_ID)
 
 
@@ -51,7 +62,7 @@ def load_daily_prices(days_back: int = 90) -> pd.DataFrame:
     WHERE price_date >= DATE_SUB(CURRENT_DATE(), INTERVAL {days_back} DAY)
     ORDER BY coin_id, price_date
   """
-  return client.query(query).to_dataframe()
+  return client.query(query).to_dataframe(create_bqstorage_client=False)
 
 
 @st.cache_data(ttl=3600)
@@ -64,7 +75,7 @@ def load_dim_coins() -> pd.DataFrame:
     FROM `{PROJECT_ID}.analytics.dim_coins`
     ORDER BY latest_market_cap_usd DESC NULLS LAST
   """
-  return client.query(query).to_dataframe()
+  return client.query(query).to_dataframe(create_bqstorage_client=False)
 
 
 @st.cache_data(ttl=3600)
@@ -79,7 +90,7 @@ def load_volatility() -> pd.DataFrame:
     WHERE week_start >= DATE_SUB(CURRENT_DATE(), INTERVAL 180 DAY)
     ORDER BY coin_id, week_start
   """
-  return client.query(query).to_dataframe()
+  return client.query(query).to_dataframe(create_bqstorage_client=False)
 
 
 @st.cache_data(ttl=3600)
@@ -97,7 +108,7 @@ def load_pipeline_status() -> pd.DataFrame:
     GROUP BY coin_id
     ORDER BY coin_id
   """
-  return client.query(query).to_dataframe()
+  return client.query(query).to_dataframe(create_bqstorage_client=False)
 
 
 def fmt_price(v: float) -> str:
