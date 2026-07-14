@@ -1,0 +1,93 @@
+name: Daily Ingest
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # 06:00 UTC daily
+  workflow_dispatch:
+    inputs:
+      full_refresh:
+        description: 'Run full-refresh (backfill all history)'
+        type: boolean
+        default: false
+
+jobs:
+  ingest-and-transform:
+    name: Ingest → dbt run → dbt test → freshness
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Write GCP keyfile
+        run: echo '${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}' > gcp_keyfile.json
+
+      - name: Write dbt profiles
+        run: |
+          mkdir -p ~/.dbt
+          cat > ~/.dbt/profiles.yml <<EOF
+          crypto_market_pipeline:
+            target: prod
+            outputs:
+              prod:
+                type: bigquery
+                method: service-account
+                project: ${{ secrets.GCP_PROJECT_ID }}
+                dataset: analytics
+                keyfile: gcp_keyfile.json
+                location: US
+                threads: 4
+                timeout_seconds: 300
+          EOF
+
+      - name: Run pytest
+        run: pytest tests/ -v
+
+      - name: Ingest — incremental
+        if: ${{ github.event.inputs.full_refresh != 'true' }}
+        env:
+          GCP_PROJECT_ID:               ${{ secrets.GCP_PROJECT_ID }}
+          GOOGLE_APPLICATION_CREDENTIALS: gcp_keyfile.json
+          COINGECKO_API_KEY:            ${{ secrets.COINGECKO_API_KEY }}
+        run: python -m ingestion.ingest
+
+      - name: Ingest — full refresh
+        if: ${{ github.event.inputs.full_refresh == 'true' }}
+        env:
+          GCP_PROJECT_ID:               ${{ secrets.GCP_PROJECT_ID }}
+          GOOGLE_APPLICATION_CREDENTIALS: gcp_keyfile.json
+          COINGECKO_API_KEY:            ${{ secrets.COINGECKO_API_KEY }}
+        run: python -m ingestion.ingest --full-refresh
+
+      - name: dbt deps
+        working-directory: dbt
+        run: dbt deps
+
+      - name: dbt run
+        working-directory: dbt
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GOOGLE_APPLICATION_CREDENTIALS: ../gcp_keyfile.json
+        run: dbt run --target prod
+
+      - name: dbt test
+        working-directory: dbt
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GOOGLE_APPLICATION_CREDENTIALS: ../gcp_keyfile.json
+        run: dbt test --target prod
+
+      - name: dbt source freshness
+        working-directory: dbt
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GOOGLE_APPLICATION_CREDENTIALS: ../gcp_keyfile.json
+        run: dbt source freshness --target prod

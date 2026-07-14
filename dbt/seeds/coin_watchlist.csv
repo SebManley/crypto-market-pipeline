@@ -1,0 +1,11 @@
+coin_id,name,symbol,category
+bitcoin,Bitcoin,BTC,layer1
+ethereum,Ethereum,ETH,layer1
+solana,Solana,SOL,layer1
+binancecoin,BNB,BNB,layer1
+ripple,XRP,XRP,layer1
+cardano,Cardano,ADA,layer1
+avalanche-2,Avalanche,AVAX,layer1
+chainlink,Chainlink,LINK,defi
+uniswap,Uniswap,UNI,defi
+polkadot,Polkadot,DOT,layer1

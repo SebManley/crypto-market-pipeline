@@ -1,0 +1,37 @@
+name: crypto_market_pipeline
+version: '1.0.0'
+config-version: 2
+
+profile: crypto_market_pipeline
+
+model-paths: ["models"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  crypto_market_pipeline:
+    staging:
+      +materialized: view
+      +schema: analytics
+    intermediate:
+      +materialized: view
+      +schema: analytics
+    marts:
+      +materialized: table
+      +schema: analytics
+
+seeds:
+  crypto_market_pipeline:
+    +schema: analytics
+    coin_watchlist:
+      +column_types:
+        coin_id: STRING
+        name: STRING
+        symbol: STRING
+        category: STRING

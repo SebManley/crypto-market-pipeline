@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'dbt/**'
+      - 'ingestion/**'
+      - 'tests/**'
+      - 'requirements*.txt'
+  push:
+    branches: [main]
+    paths:
+      - 'dbt/**'
+
+jobs:
+  pytest:
+    name: pytest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dev dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: pytest tests/ -v --cov=ingestion --cov-report=term-missing
+
+  dbt-slim-ci:
+    name: dbt slim CI
+    runs-on: ubuntu-latest
+    needs: pytest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Write GCP keyfile
+        run: echo '${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}' > gcp_keyfile.json
+
+      - name: Write dbt profiles
+        run: |
+          mkdir -p ~/.dbt
+          cat > ~/.dbt/profiles.yml <<EOF
+          crypto_market_pipeline:
+            target: ci
+            outputs:
+              ci:
+                type: bigquery
+                method: service-account
+                project: ${{ secrets.GCP_PROJECT_ID }}
+                dataset: analytics_ci
+                keyfile: gcp_keyfile.json
+                location: US
+                threads: 4
+                timeout_seconds: 300
+          EOF
+
+      - name: dbt deps
+        working-directory: dbt
+        run: dbt deps
+
+      - name: dbt build (slim CI — changed models only)
+        working-directory: dbt
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          dbt build \
+            --target ci \
+            --select state:modified+ \
+            --defer \
+            --state ./target

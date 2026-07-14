@@ -1,0 +1,56 @@
+version: 2
+
+models:
+  - name: fct_daily_prices
+    description: >
+      Wide fact table: one row per (coin_id, price_date). Incremental model — new dates
+      are appended; existing rows are updated via unique_key merge. Includes OHLCV,
+      all rolling metrics, drawdown, and SMA deviation columns.
+    columns:
+      - name: coin_id
+        tests: [not_null]
+      - name: price_date
+        tests: [not_null]
+      - name: close_usd
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+      - name: volume_usd
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+              config:
+                where: "volume_usd is not null"
+      - name: market_cap_usd
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+              config:
+                where: "market_cap_usd is not null"
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [coin_id, price_date]
+
+  - name: fct_coin_volatility
+    description: Weekly aggregated volatility metrics per coin. Used by the risk dashboard page.
+    columns:
+      - name: coin_id
+        tests: [not_null]
+      - name: week_start
+        tests: [not_null]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [coin_id, week_start]
+
+  - name: dim_coins
+    description: >
+      Dimension table: one row per coin. Joins coin watchlist seed with latest metadata.
+      Includes ATH price/date, days since genesis, category.
+    columns:
+      - name: coin_id
+        tests:
+          - not_null
+          - unique
+      - name: name
+        tests: [not_null]

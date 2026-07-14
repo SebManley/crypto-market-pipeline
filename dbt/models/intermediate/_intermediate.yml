@@ -1,0 +1,27 @@
+version: 2
+
+models:
+  - name: int_prices__daily_returns
+    description: >
+      Adds daily_return_pct using LAG(close_usd) per coin, ordered by price_date.
+      NULL for the first available date per coin.
+    columns:
+      - name: coin_id
+        tests: [not_null]
+      - name: price_date
+        tests: [not_null]
+      - name: close_usd
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+
+  - name: int_prices__rolling_metrics
+    description: >
+      Adds 7d/30d simple moving averages, rolling return standard deviations,
+      cumulative max close (for drawdown), and annualised 30d volatility.
+    columns:
+      - name: coin_id
+        tests: [not_null]
+      - name: price_date
+        tests: [not_null]
