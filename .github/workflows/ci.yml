@@ -3,15 +3,8 @@ name: CI
 on:
   pull_request:
     branches: [main]
-    paths:
-      - 'dbt/**'
-      - 'ingestion/**'
-      - 'tests/**'
-      - 'requirements*.txt'
   push:
     branches: [main]
-    paths:
-      - 'dbt/**'
 
 jobs:
   pytest:
