@@ -23,6 +23,8 @@ dbt/target/
 dbt/dbt_packages/
 dbt/logs/
 dbt/profiles.yml
+dbt/.user.yml
+dbt/package-lock.yml
 
 # Streamlit
 .streamlit/secrets.toml
