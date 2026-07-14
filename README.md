@@ -4,13 +4,13 @@
 ![CI](https://github.com/SebManley/crypto-market-pipeline/actions/workflows/ci.yml/badge.svg)
 ![dbt](https://img.shields.io/badge/dbt-1.8-orange)
 ![BigQuery](https://img.shields.io/badge/BigQuery-free--tier-4285F4)
-![Streamlit](https://img.shields.io/badge/Streamlit-live-FF4B4B)
+[![Streamlit](https://img.shields.io/badge/Streamlit-live-FF4B4B)](https://crypto-market-pipeline-djijorlqysm2rh7p7v5pxg.streamlit.app)
 
 A production-quality data pipeline tracking 10 cryptocurrencies via the CoinGecko API.
 Demonstrates the patterns I apply to every client engagement: cloud warehouse ingestion,
 dbt model layering with window functions, idempotent loads, comprehensive testing, and a live dashboard.
 
-**Live dashboard →** [crypto-market-pipeline.streamlit.app](https://crypto-market-pipeline.streamlit.app)
+**Live dashboard →** [crypto-market-pipeline-djijorlqysm2rh7p7v5pxg.streamlit.app](https://crypto-market-pipeline-djijorlqysm2rh7p7v5pxg.streamlit.app)
 
 ---
 
