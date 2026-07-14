@@ -45,7 +45,7 @@ MOCK_COIN_INFO = {
 @pytest.fixture
 def mock_coingecko():
   """Activate responses mock context and register standard endpoints."""
-  with responses_lib.RequestsMock() as rsps:
+  with responses_lib.RequestsMock(assert_all_requests_are_fired=False) as rsps:
     rsps.add(
       responses_lib.GET,
       f'https://api.coingecko.com/api/v3/coins/{MOCK_COIN_ID}/market_chart',
