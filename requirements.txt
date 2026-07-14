@@ -2,7 +2,7 @@ requests==2.32.3
 tenacity==8.5.0
 google-cloud-bigquery==3.25.0
 google-cloud-bigquery-storage==2.26.0
-pyarrow==17.0.0
+pyarrow==18.1.0
 python-dotenv==1.0.1
 dbt-bigquery==1.8.3
 streamlit==1.38.0

@@ -1,19 +1,21 @@
 """
 bigquery_loader.py
 
-Idempotent BigQuery loader. Writes raw price and metadata rows via MERGE statements
-so the pipeline is safe to re-run without duplicating data.
+BigQuery loader using load jobs (no DML/MERGE) to avoid billing requirements.
+
+Strategy:
+  - Full refresh: WRITE_TRUNCATE replaces the table entirely.
+  - Incremental: WRITE_APPEND adds new rows; dbt staging deduplicates with QUALIFY.
+  - coin_metadata: always WRITE_TRUNCATE (10 rows, fast to replace).
 
 Usage:
   loader = BigQueryLoader(project_id='my-project')
   loader.ensure_tables_exist()
-  loader.upsert_prices(rows)
-  loader.upsert_coin_metadata(rows)
+  loader.write_prices(rows, full_refresh=True)
+  loader.write_coin_metadata(rows)
 """
 
 import logging
-import os
-from datetime import date, datetime, timezone
 from typing import Optional
 
 from google.cloud import bigquery
@@ -22,26 +24,26 @@ from google.oauth2 import service_account
 log = logging.getLogger(__name__)
 
 PRICES_SCHEMA = [
-  bigquery.SchemaField('coin_id',       'STRING',    mode='REQUIRED'),
-  bigquery.SchemaField('price_date',    'DATE',      mode='REQUIRED'),
-  bigquery.SchemaField('open_usd',      'FLOAT64',   mode='NULLABLE'),
-  bigquery.SchemaField('high_usd',      'FLOAT64',   mode='NULLABLE'),
-  bigquery.SchemaField('low_usd',       'FLOAT64',   mode='NULLABLE'),
-  bigquery.SchemaField('close_usd',     'FLOAT64',   mode='REQUIRED'),
-  bigquery.SchemaField('volume_usd',    'FLOAT64',   mode='NULLABLE'),
-  bigquery.SchemaField('market_cap_usd','FLOAT64',   mode='NULLABLE'),
-  bigquery.SchemaField('fetched_date',  'DATE',      mode='REQUIRED'),
-  bigquery.SchemaField('fetched_at',    'TIMESTAMP', mode='REQUIRED'),
+  bigquery.SchemaField('coin_id',        'STRING',    mode='REQUIRED'),
+  bigquery.SchemaField('price_date',     'DATE',      mode='REQUIRED'),
+  bigquery.SchemaField('open_usd',       'FLOAT64',   mode='NULLABLE'),
+  bigquery.SchemaField('high_usd',       'FLOAT64',   mode='NULLABLE'),
+  bigquery.SchemaField('low_usd',        'FLOAT64',   mode='NULLABLE'),
+  bigquery.SchemaField('close_usd',      'FLOAT64',   mode='REQUIRED'),
+  bigquery.SchemaField('volume_usd',     'FLOAT64',   mode='NULLABLE'),
+  bigquery.SchemaField('market_cap_usd', 'FLOAT64',   mode='NULLABLE'),
+  bigquery.SchemaField('fetched_date',   'DATE',      mode='REQUIRED'),
+  bigquery.SchemaField('fetched_at',     'TIMESTAMP', mode='REQUIRED'),
 ]
 
 METADATA_SCHEMA = [
-  bigquery.SchemaField('coin_id',       'STRING',    mode='REQUIRED'),
-  bigquery.SchemaField('name',          'STRING',    mode='NULLABLE'),
-  bigquery.SchemaField('symbol',        'STRING',    mode='NULLABLE'),
-  bigquery.SchemaField('genesis_date',  'DATE',      mode='NULLABLE'),
-  bigquery.SchemaField('ath_usd',       'FLOAT64',   mode='NULLABLE'),
-  bigquery.SchemaField('ath_date',      'DATE',      mode='NULLABLE'),
-  bigquery.SchemaField('fetched_at',    'TIMESTAMP', mode='REQUIRED'),
+  bigquery.SchemaField('coin_id',      'STRING',    mode='REQUIRED'),
+  bigquery.SchemaField('name',         'STRING',    mode='NULLABLE'),
+  bigquery.SchemaField('symbol',       'STRING',    mode='NULLABLE'),
+  bigquery.SchemaField('genesis_date', 'DATE',      mode='NULLABLE'),
+  bigquery.SchemaField('ath_usd',      'FLOAT64',   mode='NULLABLE'),
+  bigquery.SchemaField('ath_date',     'DATE',      mode='NULLABLE'),
+  bigquery.SchemaField('fetched_at',   'TIMESTAMP', mode='REQUIRED'),
 ]
 
 
@@ -102,53 +104,32 @@ class BigQueryLoader:
       self.client.create_table(table)
       log.info('Created table %s', ref)
 
-  def upsert_prices(self, rows: list[dict]) -> int:
+  def write_prices(self, rows: list[dict], full_refresh: bool = False) -> int:
     if not rows:
       return 0
-    temp_table = f'{self._table_ref("prices")}_tmp_{datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")}'
-    job_config = bigquery.LoadJobConfig(schema=PRICES_SCHEMA, write_disposition='WRITE_TRUNCATE')
-    self.client.load_table_from_json(rows, temp_table, job_config=job_config).result()
-
-    merge_sql = f"""
-      MERGE `{self._table_ref('prices')}` T
-      USING `{temp_table}` S
-        ON T.coin_id = S.coin_id AND T.price_date = S.price_date
-      WHEN MATCHED THEN UPDATE SET
-        open_usd       = S.open_usd,
-        high_usd       = S.high_usd,
-        low_usd        = S.low_usd,
-        close_usd      = S.close_usd,
-        volume_usd     = S.volume_usd,
-        market_cap_usd = S.market_cap_usd,
-        fetched_date   = S.fetched_date,
-        fetched_at     = S.fetched_at
-      WHEN NOT MATCHED THEN INSERT ROW
-    """
-    self.client.query(merge_sql).result()
-    self.client.delete_table(temp_table, not_found_ok=True)
-    log.info('Upserted %d price rows', len(rows))
+    disposition = 'WRITE_TRUNCATE' if full_refresh else 'WRITE_APPEND'
+    job_config = bigquery.LoadJobConfig(
+      schema=PRICES_SCHEMA,
+      write_disposition=disposition,
+    )
+    self.client.load_table_from_json(rows, self._table_ref('prices'), job_config=job_config).result()
+    log.info('Wrote %d price rows (%s)', len(rows), disposition)
     return len(rows)
+
+  def write_coin_metadata(self, rows: list[dict]) -> int:
+    if not rows:
+      return 0
+    job_config = bigquery.LoadJobConfig(
+      schema=METADATA_SCHEMA,
+      write_disposition='WRITE_TRUNCATE',
+    )
+    self.client.load_table_from_json(rows, self._table_ref('coin_metadata'), job_config=job_config).result()
+    log.info('Wrote %d metadata rows (WRITE_TRUNCATE)', len(rows))
+    return len(rows)
+
+  # Keep old names as aliases so tests don't break
+  def upsert_prices(self, rows: list[dict], full_refresh: bool = False) -> int:
+    return self.write_prices(rows, full_refresh=full_refresh)
 
   def upsert_coin_metadata(self, rows: list[dict]) -> int:
-    if not rows:
-      return 0
-    temp_table = f'{self._table_ref("coin_metadata")}_tmp_{datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")}'
-    job_config = bigquery.LoadJobConfig(schema=METADATA_SCHEMA, write_disposition='WRITE_TRUNCATE')
-    self.client.load_table_from_json(rows, temp_table, job_config=job_config).result()
-
-    merge_sql = f"""
-      MERGE `{self._table_ref('coin_metadata')}` T
-      USING `{temp_table}` S ON T.coin_id = S.coin_id
-      WHEN MATCHED THEN UPDATE SET
-        name         = S.name,
-        symbol       = S.symbol,
-        genesis_date = S.genesis_date,
-        ath_usd      = S.ath_usd,
-        ath_date     = S.ath_date,
-        fetched_at   = S.fetched_at
-      WHEN NOT MATCHED THEN INSERT ROW
-    """
-    self.client.query(merge_sql).result()
-    self.client.delete_table(temp_table, not_found_ok=True)
-    log.info('Upserted %d metadata rows', len(rows))
-    return len(rows)
+    return self.write_coin_metadata(rows)

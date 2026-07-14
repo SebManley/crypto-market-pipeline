@@ -84,21 +84,24 @@ class TestEnsureTablesExist:
 
 
 class TestUpsertPrices:
-  def test_calls_load_and_merge_and_cleanup(self, loader):
+  def test_calls_load_job(self, loader):
     loader.upsert_prices(SAMPLE_PRICE_ROWS)
-
     loader.client.load_table_from_json.assert_called_once()
-    loader.client.query.assert_called_once()
-    loader.client.delete_table.assert_called_once()
 
-  def test_merge_sql_references_correct_tables(self, loader):
+  def test_full_refresh_uses_write_truncate(self, loader):
+    loader.upsert_prices(SAMPLE_PRICE_ROWS, full_refresh=True)
+    job_config = loader.client.load_table_from_json.call_args[1]['job_config']
+    assert job_config.write_disposition == 'WRITE_TRUNCATE'
+
+  def test_incremental_uses_write_append(self, loader):
+    loader.upsert_prices(SAMPLE_PRICE_ROWS, full_refresh=False)
+    job_config = loader.client.load_table_from_json.call_args[1]['job_config']
+    assert job_config.write_disposition == 'WRITE_APPEND'
+
+  def test_loads_to_correct_table(self, loader):
     loader.upsert_prices(SAMPLE_PRICE_ROWS)
-
-    merge_sql = loader.client.query.call_args[0][0]
-    assert 'test-project.raw.prices' in merge_sql
-    assert 'MERGE' in merge_sql
-    assert 'coin_id' in merge_sql
-    assert 'price_date' in merge_sql
+    table_arg = loader.client.load_table_from_json.call_args[0][1]
+    assert table_arg == 'test-project.raw.prices'
 
   def test_returns_row_count(self, loader):
     count = loader.upsert_prices(SAMPLE_PRICE_ROWS)
@@ -110,6 +113,11 @@ class TestUpsertPrices:
     assert count == 0
 
   def test_idempotent_on_duplicate_rows(self, loader):
+    rows = SAMPLE_PRICE_ROWS + SAMPLE_PRICE_ROWS
+    loader.upsert_prices(rows)
+    assert loader.client.load_table_from_json.call_count == 1
+
+  def test_idempotent_on_duplicate_rows(self, loader):
     rows = SAMPLE_PRICE_ROWS + SAMPLE_PRICE_ROWS  # double-write same rows
     loader.upsert_prices(rows)
     # MERGE handles dedup — we just assert it still only runs one query
@@ -117,18 +125,19 @@ class TestUpsertPrices:
 
 
 class TestUpsertCoinMetadata:
-  def test_calls_load_and_merge(self, loader):
+  def test_calls_load_job(self, loader):
     loader.upsert_coin_metadata(SAMPLE_METADATA_ROWS)
-
     loader.client.load_table_from_json.assert_called_once()
-    loader.client.query.assert_called_once()
 
-  def test_merge_sql_merges_on_coin_id(self, loader):
+  def test_uses_write_truncate(self, loader):
     loader.upsert_coin_metadata(SAMPLE_METADATA_ROWS)
+    job_config = loader.client.load_table_from_json.call_args[1]['job_config']
+    assert job_config.write_disposition == 'WRITE_TRUNCATE'
 
-    merge_sql = loader.client.query.call_args[0][0]
-    assert 'test-project.raw.coin_metadata' in merge_sql
-    assert 'T.coin_id = S.coin_id' in merge_sql
+  def test_loads_to_correct_table(self, loader):
+    loader.upsert_coin_metadata(SAMPLE_METADATA_ROWS)
+    table_arg = loader.client.load_table_from_json.call_args[0][1]
+    assert table_arg == 'test-project.raw.coin_metadata'
 
   def test_empty_rows_short_circuits(self, loader):
     count = loader.upsert_coin_metadata([])

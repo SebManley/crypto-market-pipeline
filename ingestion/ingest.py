@@ -109,7 +109,7 @@ def run(
   api_key: str | None,
 ) -> None:
   client = CoinGeckoClient(api_key=api_key)
-  days = 'max' if full_refresh else INCREMENTAL_DAYS
+  days = 365 if full_refresh else INCREMENTAL_DAYS
   fetched_at = datetime.now(timezone.utc)
 
   all_price_rows: list[dict] = []
@@ -121,7 +121,7 @@ def run(
       chart = client.fetch_market_chart(coin_id, days=days)
       price_rows = parse_market_chart(coin_id, chart, fetched_at)
 
-      ohlc_days = min(OHLC_DAYS, 30) if days == 'max' else INCREMENTAL_DAYS
+      ohlc_days = OHLC_DAYS if full_refresh else INCREMENTAL_DAYS
       try:
         ohlc = client.fetch_ohlc(coin_id, days=ohlc_days)
         price_rows = merge_ohlc(price_rows, ohlc)
@@ -149,7 +149,7 @@ def run(
 
   loader = BigQueryLoader(project_id=project_id, raw_dataset=raw_dataset)
   loader.ensure_tables_exist()
-  loader.upsert_prices(all_price_rows)
+  loader.upsert_prices(all_price_rows, full_refresh=full_refresh)
   loader.upsert_coin_metadata(all_metadata_rows)
   log.info('Ingestion complete.')
 
