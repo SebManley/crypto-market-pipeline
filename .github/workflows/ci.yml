@@ -41,7 +41,9 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Write GCP keyfile
-        run: echo '${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}' > gcp_keyfile.json
+        env:
+          GCP_CREDENTIALS: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+        run: echo "$GCP_CREDENTIALS" > gcp_keyfile.json
 
       - name: Write dbt profiles
         run: |
