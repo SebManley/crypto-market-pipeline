@@ -61,6 +61,15 @@ jobs:
                 timeout_seconds: 300
           EOF
 
+      - name: Download dbt manifest
+        id: manifest
+        continue-on-error: true
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: ingest.yml
+          name: dbt-manifest
+          path: dbt/target
+
       - name: dbt deps
         working-directory: dbt
         run: dbt deps
@@ -70,8 +79,9 @@ jobs:
         env:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
         run: |
-          dbt build \
-            --target ci \
-            --select state:modified+ \
-            --defer \
-            --state ./target
+          if [ -f target/manifest.json ]; then
+            dbt build --target ci --select state:modified+ --defer --state ./target
+          else
+            echo "No prod manifest found — running full build"
+            dbt build --target ci
+          fi
