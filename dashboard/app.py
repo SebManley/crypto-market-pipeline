@@ -187,7 +187,7 @@ page = st.sidebar.radio(
 st.sidebar.divider()
 days_back = st.sidebar.slider('Lookback (days)', min_value=30, max_value=365, value=90, step=30)
 selected_coins = st.sidebar.multiselect(
-  'Cryptocurrencies',
+  'Coins',
   options=list(COIN_COLORS),
   default=DEFAULT_COINS,
 )
