@@ -22,8 +22,8 @@ from google.cloud import bigquery
 from google.oauth2 import service_account
 
 st.set_page_config(
-  page_title='Crypto Market Pipeline',
-  page_icon='₿',
+  page_title='Crypto Market Analysis',
+  page_icon=None,
   layout='wide',
   initial_sidebar_state='expanded',
 )
