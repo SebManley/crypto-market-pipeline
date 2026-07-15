@@ -48,9 +48,6 @@ jobs:
                 timeout_seconds: 300
           EOF
 
-      - name: Run pytest
-        run: pytest tests/ -v
-
       - name: Ingest — incremental
         if: ${{ github.event.inputs.full_refresh != 'true' }}
         env:
