@@ -121,9 +121,8 @@ def run(
       chart = client.fetch_market_chart(coin_id, days=days)
       price_rows = parse_market_chart(coin_id, chart, fetched_at)
 
-      ohlc_days = OHLC_DAYS if full_refresh else INCREMENTAL_DAYS
       try:
-        ohlc = client.fetch_ohlc(coin_id, days=ohlc_days)
+        ohlc = client.fetch_ohlc(coin_id, days=OHLC_DAYS)
         price_rows = merge_ohlc(price_rows, ohlc)
       except Exception as e:
         log.warning('OHLC fetch failed for %s: %s — skipping OHLC merge', coin_id, e)
