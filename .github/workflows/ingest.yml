@@ -75,7 +75,12 @@ jobs:
         env:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           GOOGLE_APPLICATION_CREDENTIALS: ../gcp_keyfile.json
-        run: dbt run --target prod
+        run: |
+          if [ "${{ github.event.inputs.full_refresh }}" = "true" ]; then
+            dbt run --target prod --full-refresh
+          else
+            dbt run --target prod
+          fi
 
       - name: Upload dbt manifest
         uses: actions/upload-artifact@v4
