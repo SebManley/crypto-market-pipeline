@@ -121,8 +121,10 @@ def run(
       chart = client.fetch_market_chart(coin_id, days=days)
       price_rows = parse_market_chart(coin_id, chart, fetched_at)
 
+      # OHLC endpoint only accepts 1/7/14/30/90/180/365 — full year on backfill,
+      # rolling 30 days on daily runs
       try:
-        ohlc = client.fetch_ohlc(coin_id, days=OHLC_DAYS)
+        ohlc = client.fetch_ohlc(coin_id, days=365 if full_refresh else OHLC_DAYS)
         price_rows = merge_ohlc(price_rows, ohlc)
       except Exception as e:
         log.warning('OHLC fetch failed for %s: %s — skipping OHLC merge', coin_id, e)
