@@ -133,7 +133,7 @@ def fmt_billions(v: float) -> str:
 
 # ─── Sidebar ───────────────────────────────────────────────────────────────────
 
-st.sidebar.title('₿ Crypto Market Pipeline')
+st.sidebar.title('Crypto Market Analysis')
 page = st.sidebar.radio(
   'Navigate',
   ['Market Overview', 'Technical Analysis', 'Volatility & Risk', 'Pipeline Status'],
