@@ -6,28 +6,22 @@
 ![BigQuery](https://img.shields.io/badge/BigQuery-free--tier-4285F4)
 [![Streamlit](https://img.shields.io/badge/Streamlit-live-FF4B4B)](https://crypto-market-pipeline-djijorlqysm2rh7p7v5pxg.streamlit.app)
 
-A production-quality data pipeline tracking 10 cryptocurrencies via the CoinGecko API.
-Demonstrates the patterns I apply to every client engagement: cloud warehouse ingestion,
-dbt model layering with window functions, idempotent loads, comprehensive testing, and a live dashboard.
+A daily-refreshed data pipeline tracking market data for 10 cryptocurrencies, built on the
+CoinGecko API, BigQuery, and dbt, with a public Streamlit dashboard for exploring price trends,
+volatility, and technical indicators.
 
 **Live dashboard →** [crypto-market-pipeline-djijorlqysm2rh7p7v5pxg.streamlit.app](https://crypto-market-pipeline-djijorlqysm2rh7p7v5pxg.streamlit.app)
 
 ---
 
-## What this project demonstrates
+## Highlights
 
-| Pattern | Where |
-|---|---|
-| REST API ingestion with retry + rate limiting | `ingestion/coingecko.py` — tenacity backoff on 429/5xx |
-| Cloud warehouse loading (BigQuery free tier) | `ingestion/bigquery_loader.py` — MERGE-based idempotent upserts |
-| dbt staging → intermediate → mart layering | `dbt/models/` — QUALIFY dedup, LAG returns, rolling SMA |
-| Incremental dbt model (partition + cluster) | `fct_daily_prices.sql` — unique_key merge on (coin_id, price_date) |
-| Window functions in intermediate layer | `int_prices__rolling_metrics.sql` — 7d/30d SMA, stddev, cummax |
-| dbt-utils generic + singular tests | `_marts.yml`, `tests/assert_price_positive.sql` |
-| Source freshness monitoring | `_sources.yml` — warn after 1 day, error after 2 days |
-| Mocked pytest suite (no real API/BQ calls) | `tests/` — responses mock + unittest.mock for BigQuery |
-| GitHub Actions daily cron + slim CI | `.github/workflows/` — ingest + dbt run/test/freshness |
-| Live public dashboard | `dashboard/app.py` — Streamlit 4-page app on Community Cloud |
+- **Idempotent ingestion** — full backfills truncate-and-reload; incremental runs append and rely on `QUALIFY`-based deduplication downstream, so re-running the pipeline never produces duplicate data
+- **Layered dbt models** — staging → intermediate → marts, with window functions (rolling SMA, return stddev, drawdown from ATH) computed once in the intermediate layer and reused across marts
+- **Incremental fact table** — `fct_daily_prices` is partitioned by date and clustered by coin, appending only new dates on each run to keep BigQuery costs low
+- **59 automated tests** — 28 pytest unit tests mocked against the API and BigQuery client, plus 31 dbt schema and data tests
+- **Source freshness monitoring** — dbt flags stale ingests before they reach the dashboard
+- **CI on every change** — GitHub Actions runs a daily ingest + transform cron, and slim CI on pull requests that re-tests only the models affected by the change
 
 ---
 
